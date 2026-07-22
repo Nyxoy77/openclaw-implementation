@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { file } from 'bun';
 import type { ActionTracker } from './action-tracker';
-import type { AgentConfig } from './types';
+import type { AgentConfig ,ActionLog} from './types';
 
 const TEXT_EXT = new Set([
     ".ts",
@@ -365,5 +365,123 @@ export class ToolExecutor {
             status: "pending",
         });
         return `Shell queued: ${command}`;
+    }
+    
+    skillRoots(): string[] {
+        const extra =
+            process.env.SKILLS_DIRS?.split(/[;]/)
+                .map((s) => s.trim())
+                .filter(Boolean) ?? [];
+        return [
+            ...extra,
+            path.join(homedir(), ".cursor/skills-cursor"),
+            path.join(homedir(), ".claude/skills"),
+        ];
+    }
+
+    listSkills(): string {
+        const lines: string[] = [];
+        for (const root of this.skillRoots()) {
+            if (!fs.existsSync(root)) continue;
+            const walk = (dir: string) => {
+                for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+                    const full = path.join(dir, ent.name);
+                    if (ent.isDirectory()) walk(full);
+                    else if (ent.name === "SKILL.md") lines.push(full);
+                }
+            };
+            walk(root);
+        }
+        const out = lines.sort().join("\n");
+        this.tracker.log({
+            type: "code_analysis",
+            path: "skills",
+            details: { after: out || "(none)", toolName: "list_skills" },
+            status: "executed",
+        });
+        return out || "(none)";
+    }
+
+    readSkill(skillPath: string): string {
+        const abs = path.isAbsolute(skillPath)
+            ? path.normalize(skillPath)
+            : path.normalize(path.resolve(this.config.codebasePath, skillPath));
+        const allowed = this.skillRoots().some((root) => {
+            const r = path.resolve(root);
+            return abs === r || abs.startsWith(r + path.sep);
+        });
+        if (!allowed) throw new Error("read_skill: outside skill roots");
+        const text = fs.readFileSync(abs, "utf8");
+        this.tracker.log({
+            type: "code_analysis",
+            path: abs,
+            details: { after: text, toolName: "read_skill" },
+            status: "executed",
+        });
+        return text;
+    }
+
+    applyApprovedFromTracker(): { errors: string[] } {
+        const errors: string[] = [];
+        const all = [...this.tracker.getActions()];
+
+        for (const a of all.filter(
+            (x) => x.type === "folder_create" && x.status === "approved",
+        )) {
+            try {
+                fs.mkdirSync(this.resolveSafe(a.path), { recursive: true });
+            } catch (e) {
+                errors.push(String(e));
+            }
+        }
+
+        const fileOps = all
+            .filter(
+                (a) =>
+                    (a.type === "file_create" ||
+                        a.type === "file_modify" ||
+                        a.type === "file_delete") &&
+                    a.status === "approved",
+            )
+            .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+        const lastByPath = new Map<string, ActionLog>();
+        for (const a of fileOps) lastByPath.set(this.norm(a.path), a);
+
+        for (const [p, a] of lastByPath) {
+            try {
+                if (a.type === "file_delete")
+                    fs.rmSync(this.resolveSafe(p), { force: true });
+                else {
+                    const target = this.resolveSafe(p);
+                    fs.mkdirSync(path.dirname(target), { recursive: true });
+                    fs.writeFileSync(target, a.details.after ?? "", "utf8");
+                }
+            } catch (e) {
+                errors.push(String(e));
+            }
+        }
+
+        for (const a of all.filter(
+            (x) => x.type === "tool_execute" && x.status === "approved",
+        )) {
+            const cmd = a.details.command;
+            if (!cmd) continue;
+            const r = spawnSync(cmd, {
+                shell: true,
+                cwd: this.config.codebasePath,
+                encoding: "utf8",
+                maxBuffer: 16 * 1024 * 1024,
+            });
+            if (r.status && r.status !== 0)
+                errors.push(`shell exit ${r.status}: ${cmd}`);
+        }
+
+        return { errors };
+    }
+
+    clearStaging(): void {
+        this.overlay.clear()
+        this.deleted.clear()
     }
 }
