@@ -13,14 +13,14 @@ export function getAgentModel() {
     return provider(modelId);
 }
 
-function gettext(prompt: string) {
-    let provider = getAgentModel()
+// function gettext(prompt: string) {
+//     let provider = getAgentModel()
 
-    return generateText({
-        model: provider,
-        prompt,
-    })
-}
+//     return generateText({
+//         model: provider,
+//         prompt,
+//     })
+// }
 
-let openRouterResponseObj = await gettext("What is the capital of india")
-console.log(openRouterResponseObj.text)
+// let openRouterResponseObj = await gettext("What is the capital of india")
+// console.log(openRouterResponseObj.text)

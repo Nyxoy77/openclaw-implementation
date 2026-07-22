@@ -19,7 +19,7 @@ export class ActionTracker {
             status: entry.status,
             userApproved: entry.userApproved,
         }
-
+        this.actions.push(action)
         return action
     }
 
