@@ -1,4 +1,3 @@
-import { throws } from "node:assert";
 import type { ActionLog, ActionStatus } from "./types";
 import { isMutationType } from "./types";
 
