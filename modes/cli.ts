@@ -33,4 +33,3 @@ export async function runCliMode() {
         // console.log(chalk.yellow("\nThat mode is not implemented yet.\n"));
     }
 }
-export async function runTelegramMode() { }
