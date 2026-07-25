@@ -9,6 +9,7 @@ import { defaultAgentConfig } from "../agent/types";
 import { renderTerminalMarkdown } from "../../terminal_ui_Interface/terminal-md";
 import { runApprovalFlow } from "../agent/approval";
 import { create } from "node:domain";
+import { createWebTools } from "../plan/web-tools";
 
 function createAskTools(executor: ToolExecutor) {
     return {
@@ -91,7 +92,8 @@ export async function runAskMode() {
     // TODO: web search tool using firecrawl
 
     const tools = {
-        ...createAskTools(executor)
+        ...createAskTools(executor),
+        ...createWebTools(tracker)
     }
 
     const agent = new ToolLoopAgent({

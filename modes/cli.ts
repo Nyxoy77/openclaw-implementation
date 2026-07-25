@@ -3,6 +3,7 @@ import { select, isCancel } from "@clack/prompts"
 import { runWakeup } from "../terminal_ui_Interface/wakeup";
 import { runAgentMode } from "./agent/orchestration";
 import { runAskMode } from "./ask/orchestrator";
+import { runPlanMode } from "./plan/orchestrator";
 
 export async function runCliMode() {
     const mode = await select({
@@ -25,7 +26,7 @@ export async function runCliMode() {
         await runAskMode()
     }
     if (mode === "plan") {
-        // await runPlanMode()
+        await runPlanMode()
     }
 
     if (mode !== "agent" && mode !== "plan" && mode !== "ask") {
